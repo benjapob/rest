@@ -1,14 +1,15 @@
 import connect from "@/lib/db"
 import bcrypt from "bcrypt";
 import User from "@/lib/models/users";
-import { NextResponse } from "next/server"
+import { NextResponse } from "next/server";
+import { ObjectId } from "mongodb";
 
 export const GET = async () => {
     try {
         // Conectar a la base de datos
         await connect();
         // Obtener todos los usuarios
-        const users = await User.find();
+        const users = await User.find({bloqueado:false});
         return new NextResponse(JSON.stringify(users), { status: 200 });
 
     } catch (error: any) {
@@ -18,8 +19,9 @@ export const GET = async () => {
 };
 
 export const POST = async (request: Request) => {
-    const { username, email, password } = await request.json();
     try {
+        // Obtener los datos del usuario
+        const { username, email, password } = await request.json();
         // Conectar a la base de datos
         await connect();
         // Verificar si el usuario ya existe
@@ -43,19 +45,25 @@ export const POST = async (request: Request) => {
 };
 
 export const PATCH = async (request: Request) => {
-    const { id, username, email, password } = await request.json();
     try {
+        // Obtener el id del usuario a actualizar
+        const { id, username} = await request.json();
         // Conectar a la base de datos
         await connect();
+        // Verificar si el id es un ObjectId valido
+        if (!ObjectId.isValid(id) || !id) {
+            return new NextResponse("El id no es valido o es null", { status: 400 });
+        }
+        if (!username) {
+            return new NextResponse("El username es null", { status: 400 });
+        }
         // Verificar si el usuario existe
         const existingUser = await User.findById(id);
         if (!existingUser) {
             return new NextResponse("El usuario no existe", { status: 404 });
         } else {
-            // Hash de la contraseña
-            const hashedPassword = await bcrypt.hash(password, 10);
             // Actualizar el usuario
-            const user = await User.findByIdAndUpdate(id, { username, email, password:hashedPassword }, { new: true });
+            const user = await User.findByIdAndUpdate(id, { username}, { new: true });
             return new NextResponse(JSON.stringify(
                 { message: "Usuario actualizado correctamente", user }
             ), { status: 200 });
@@ -68,12 +76,17 @@ export const PATCH = async (request: Request) => {
 };
 
 export const DELETE = async (request: Request) => {
-    const { id } = await request.json();
     try {
+        // Obtener el id del usuario a eliminar
+        const { id } = await request.json();
         // Conectar a la base de datos
         await connect();
+        // Verificar si el id es un ObjectId valido
+        if (!ObjectId.isValid(id) || !id) {
+            return new NextResponse("El id no es valido o es null", { status: 400 });
+        }
         // Verificar si el usuario existe
-        const existingUser = await User.findById(id);
+        const existingUser = await User.findOne({_id:id, bloqueado:false});
         if (!existingUser) {
             return new NextResponse("El usuario no existe", { status: 404 });
         } else {
